@@ -1,0 +1,5 @@
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import { Link } from 'react-router-dom'
+import RiskBadge from './RiskBadge'
+const color = score => score >= 70 ? '#059669' : score >= 50 ? '#d97706' : '#dc2626'
+export default function ConfidenceMap({ points }) { return <div className="h-[440px] overflow-hidden rounded-xl border border-slate-200"><MapContainer center={[22.6, 80.8]} zoom={4.4} minZoom={4} className="h-full w-full"><TileLayer attribution="© OpenStreetMap contributors" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>{points.map(p => <CircleMarker key={p.id} center={[p.latitude,p.longitude]} radius={7} pathOptions={{ color: color(p.confidence), fillOpacity: .78 }}><Popup><div className="min-w-40 space-y-1 text-sm"><strong>{p.region}</strong><br/>Day {p.lead_time} · {p.confidence}% confidence<br/>Bust probability: {Math.round(p.bust_probability * 100)}%<br/><RiskBadge risk={p.risk}/><br/><Link className="text-cyan-700 underline" to={`/regions/${p.region.toLowerCase().replaceAll(' ', '-')}`}>Open analysis</Link></div></Popup></CircleMarker>)}</MapContainer></div> }

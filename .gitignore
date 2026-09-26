@@ -1,0 +1,12 @@
+node_modules/
+venv/
+.env
+.env.*
+!.env.example
+__pycache__/
+**/__pycache__/
+*.pyc
+ml_models/
+*.log
+.DS_Store
+dist/

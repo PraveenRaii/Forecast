@@ -1,0 +1,1 @@
+export default function ErrorState({ error, retry }) { return <div className="card border-amber-300 text-sm"><p className="font-medium">Could not load this data</p><p className="mt-1 text-slate-500">{error?.message || 'The service may be unavailable.'}</p><button onClick={retry} className="mt-3 rounded bg-slate-800 px-3 py-1.5 text-white">Retry</button></div> }

@@ -1,0 +1,2 @@
+import { TrendingDown, TrendingUp } from 'lucide-react'
+export default function KPIcard({ label, value, subtext, risk }) { return <div className="card"><p className="label">{label}</p><div className="mt-2 flex items-end justify-between"><p className="text-3xl font-semibold">{value}</p>{risk === 'up' ? <TrendingUp className="text-orange-500"/> : <TrendingDown className="text-emerald-600"/>}</div><p className="mt-2 text-xs text-slate-500">{subtext}</p></div> }

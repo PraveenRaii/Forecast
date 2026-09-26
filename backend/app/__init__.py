@@ -1,0 +1,1 @@
+"""Safar backend application."""
