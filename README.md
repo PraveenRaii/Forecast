@@ -123,6 +123,36 @@ The repository includes `render.yaml`, which defines the FastAPI backend and Rea
 
 Render's official guides: [Blueprint specification](https://render.com/docs/blueprint-spec), [first deploy walkthrough](https://render.com/docs/your-first-deploy), and [Python version configuration](https://render.com/docs/python-version).
 
+### Render environment variables
+
+Add variables on the matching Render service under **Environment → Environment Variables**. The Blueprint supplies the demo defaults shown below. For manual setup, add the required rows yourself. Keep database URLs and API keys in Render's environment settings; never commit secrets to this repository.
+
+#### Backend (`safar-api` Web Service)
+
+| Variable | Required? | Render value / default | What it does |
+| --- | --- | --- | --- |
+| `PYTHON_VERSION` | Recommended | `3.12.8` | Selects the Python runtime for the Render build. |
+| `DATA_MODE` | Yes for this demo deployment | `demo` | Seeds synthetic demo forecasts on startup. `live` switches away from demo data and uses the GFS request path, which needs working provider access and GRIB decoding for full ingestion. |
+| `FRONTEND_URL` | Yes | `https://<your-frontend-name>.onrender.com` | Exact frontend origin allowed by the API's CORS configuration. Do not add a trailing slash. |
+| `MONGODB_URI` | No | Leave unset for the demo, or enter your private Atlas connection string | Connects MongoDB for persistence. Add it as a secret in Render; replace Atlas IP allow-list settings as needed for your deployment. |
+| `MONGODB_DB` | No | `weather_guard` | MongoDB database name. |
+| `NOMADS_ENABLED` | No | `true` | GFS/NOMADS provider enabled setting reported by the API. |
+| `NOMADS_BASE_URL` | No | `https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl` | NOAA NOMADS GFS filter endpoint. |
+| `ECMWF_ENABLED` | No | `false` | ECMWF provider status setting. The repository does not yet include a working ECMWF delivery client. |
+| `ECMWF_API_KEY` | No | Leave unset unless configuring ECMWF | Optional credential setting. Store it only in Render; an API key alone does not enable a data client. |
+| `BUST_PERCENTILE` | No | `90` | Reserved threshold setting; the current demo bust labels do not use this value. |
+| `ML_MODEL_PATH` | No | `./ml_models` | Local path for optional trained model artifacts. Render's normal filesystem is temporary, so use MongoDB or another durable store for data you need to retain. |
+
+For a basic demo, set `PYTHON_VERSION`, `DATA_MODE`, and `FRONTEND_URL`; leave the other variables at their defaults. The backend reads the remaining optional values from the environment or uses the defaults above.
+
+#### Frontend (`safar-forecast` Static Site)
+
+| Variable | Required? | Value | What it does |
+| --- | --- | --- | --- |
+| `VITE_API_URL` | Yes | `https://<your-backend-name>.onrender.com/api` | Public backend API base URL. Set it before deploying the frontend. Vite embeds it during the build, so changing it requires a new frontend deploy. |
+
+There are no other frontend environment variables in this app. Locally, if `VITE_API_URL` is absent, the frontend falls back to `http://localhost:8000/api`.
+
 ### Option A: Deploy both services with the Blueprint
 
 1. Push this repository to GitHub. The deployment branch is `main`.
@@ -145,13 +175,7 @@ Deploy the backend first so you have its public URL for the frontend configurati
 2. Set **Root Directory** to `backend` and **Runtime** to `Python 3`.
 3. Set **Build Command** to `pip install -r requirements.txt`.
 4. Set **Start Command** to `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-5. Add these environment variables under **Environment**:
-
-   | Key | Value |
-   | --- | --- |
-   | `PYTHON_VERSION` | `3.12.8` |
-   | `DATA_MODE` | `demo` |
-   | `FRONTEND_URL` | Your frontend URL, added after creating the static site |
+5. Add the backend environment variables under **Environment**. For the demo, set `PYTHON_VERSION=3.12.8`, `DATA_MODE=demo`, and `FRONTEND_URL` to your final frontend URL. You can first use the planned frontend URL, then update it after you create the static site. See [Render environment variables](#render-environment-variables) for all backend options.
 
 6. Select **Create Web Service** and wait for the deploy to finish. Copy the service URL, for example `https://safar-api.onrender.com`.
 7. Verify `https://<your-backend-name>.onrender.com/api/health` returns a JSON response with `"status":"ok"`.
@@ -162,11 +186,7 @@ Deploy the backend first so you have its public URL for the frontend configurati
 2. Set **Root Directory** to `frontend`.
 3. Set **Build Command** to `npm ci && npm run build`.
 4. Set **Publish Directory** to `dist`.
-5. Add this environment variable, substituting your actual backend service name:
-
-   | Key | Value |
-   | --- | --- |
-   | `VITE_API_URL` | `https://<your-backend-name>.onrender.com/api` |
+5. Add `VITE_API_URL`, substituting your actual backend service name (see [frontend environment variables](#frontend-safar-forecast-static-site)):
 
 6. Add a rewrite rule so React Router can serve direct page links: **Source** `/*`, **Destination** `/index.html`, **Action** `Rewrite`.
 7. Select **Create Static Site** and wait for the deploy. Copy the frontend URL, for example `https://safar-forecast.onrender.com`.
