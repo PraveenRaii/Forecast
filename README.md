@@ -117,6 +117,17 @@ The training module sorts rows by valid time and uses an 80/20 chronological spl
 - NOMADS can publish runs late. The provider validates request parameters and returns errors instead of crashing. Use demo mode until a valid run is available.
 - Live GRIB decoding needs `eccodes` installed by the operating system in addition to the Python packages.
 
+## Deploy on Render
+
+This repository includes a Render Blueprint at `render.yaml` for a FastAPI web service and a Vite static site. To deploy:
+
+1. Push the repository to GitHub.
+2. In Render, choose **New + → Blueprint** and connect this GitHub repository.
+3. Review the two services (`safar-api` and `safar-forecast`) and click **Apply**.
+4. Wait for both deployments to finish, then open `https://safar-forecast.onrender.com`.
+
+The Blueprint sets demo mode and the API/frontend URLs for the service names above. If Render requires different globally unique service names, update `FRONTEND_URL` on `safar-api` and `VITE_API_URL` on `safar-forecast` to match the new `onrender.com` URLs, then redeploy both services. The demo data is held in process memory when MongoDB is not configured, so it is regenerated on API restarts. Add a MongoDB Atlas URI as the `MONGODB_URI` secret on the API service if you need persistence. Render's free web services may sleep when idle and take time to wake on the next request.
+
 ## Future scope
 
 Connect operational observation and reanalysis feeds, persist a real validation archive, enable ECMWF delivery retrieval, operationalize model monitoring, add authenticated alert delivery, and run GRIB ingestion in a background worker.

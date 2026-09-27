@@ -49,7 +49,7 @@ class Database:
                 if match: match.update(doc)
                 else: existing.append(doc)
 
-    async def all(self, collection: str, query: dict | None = None, limit: int = 1000):
+    async def all(self, collection: str, query: dict | None = None, limit: int = 10000):
         query = query or {}
         if self.connected:
             return [doc async for doc in self.db[collection].find(query, {"_id": 0}).limit(limit)]
