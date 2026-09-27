@@ -119,14 +119,67 @@ The training module sorts rows by valid time and uses an 80/20 chronological spl
 
 ## Deploy on Render
 
-This repository includes a Render Blueprint at `render.yaml` for a FastAPI web service and a Vite static site. To deploy:
+The repository includes `render.yaml`, which defines the FastAPI backend and React/Vite frontend. You can deploy both together with the Blueprint, or create each service manually.
 
-1. Push the repository to GitHub.
-2. In Render, choose **New + → Blueprint** and connect this GitHub repository.
-3. Review the two services (`safar-api` and `safar-forecast`) and click **Apply**.
-4. Wait for both deployments to finish, then open `https://safar-forecast.onrender.com`.
+Render's official guides: [Blueprint specification](https://render.com/docs/blueprint-spec), [first deploy walkthrough](https://render.com/docs/your-first-deploy), and [Python version configuration](https://render.com/docs/python-version).
 
-The Blueprint sets demo mode and the API/frontend URLs for the service names above. If Render requires different globally unique service names, update `FRONTEND_URL` on `safar-api` and `VITE_API_URL` on `safar-forecast` to match the new `onrender.com` URLs, then redeploy both services. The demo data is held in process memory when MongoDB is not configured, so it is regenerated on API restarts. Add a MongoDB Atlas URI as the `MONGODB_URI` secret on the API service if you need persistence. Render's free web services may sleep when idle and take time to wake on the next request.
+### Option A: Deploy both services with the Blueprint
+
+1. Push this repository to GitHub. The deployment branch is `main`.
+2. Sign in to [Render](https://dashboard.render.com/).
+3. Select **New + → Blueprint**.
+4. Connect GitHub if prompted, select `PraveenRaii/Forecast`, and choose the `main` branch.
+5. Render reads `render.yaml` and shows two services: `safar-api` (backend) and `safar-forecast` (frontend). Review the settings and select **Apply**.
+6. Open each service in Render and wait for its first deploy to finish. Check the deploy logs if either service fails.
+7. Open the frontend at `https://safar-forecast.onrender.com`. Check the backend at `https://safar-api.onrender.com/api/health` and the API documentation at `https://safar-api.onrender.com/docs`.
+
+The Blueprint configures the backend with `DATA_MODE=demo` and `FRONTEND_URL=https://safar-forecast.onrender.com`. It configures the frontend with `VITE_API_URL=https://safar-api.onrender.com/api` and an SPA rewrite so page refreshes work on frontend routes.
+
+### Option B: Create the backend and frontend separately
+
+Deploy the backend first so you have its public URL for the frontend configuration.
+
+#### 1. Create the FastAPI backend
+
+1. In Render, select **New + → Web Service**, connect this GitHub repository, and select the `main` branch.
+2. Set **Root Directory** to `backend` and **Runtime** to `Python 3`.
+3. Set **Build Command** to `pip install -r requirements.txt`.
+4. Set **Start Command** to `uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+5. Add these environment variables under **Environment**:
+
+   | Key | Value |
+   | --- | --- |
+   | `PYTHON_VERSION` | `3.12.8` |
+   | `DATA_MODE` | `demo` |
+   | `FRONTEND_URL` | Your frontend URL, added after creating the static site |
+
+6. Select **Create Web Service** and wait for the deploy to finish. Copy the service URL, for example `https://safar-api.onrender.com`.
+7. Verify `https://<your-backend-name>.onrender.com/api/health` returns a JSON response with `"status":"ok"`.
+
+#### 2. Create the React/Vite frontend
+
+1. In Render, select **New + → Static Site**, connect the same repository, and select the `main` branch.
+2. Set **Root Directory** to `frontend`.
+3. Set **Build Command** to `npm ci && npm run build`.
+4. Set **Publish Directory** to `dist`.
+5. Add this environment variable, substituting your actual backend service name:
+
+   | Key | Value |
+   | --- | --- |
+   | `VITE_API_URL` | `https://<your-backend-name>.onrender.com/api` |
+
+6. Add a rewrite rule so React Router can serve direct page links: **Source** `/*`, **Destination** `/index.html`, **Action** `Rewrite`.
+7. Select **Create Static Site** and wait for the deploy. Copy the frontend URL, for example `https://safar-forecast.onrender.com`.
+8. Return to the backend service's **Environment** settings and set `FRONTEND_URL` to the exact frontend URL, with no trailing slash. Save the change and redeploy the backend.
+9. Open the frontend URL, then verify the dashboard loads data. Also recheck the backend `/api/health` and `/docs` links.
+
+### Optional MongoDB persistence
+
+The app runs in demo mode without MongoDB; demo records are kept in memory and are regenerated after backend restarts. For persistence, create a MongoDB Atlas database, allow network access from Render as appropriate for your Atlas setup, and add `MONGODB_URI` as a secret environment variable on the backend service. You can also set `MONGODB_DB` if you want a database name other than `weather_guard`. Keep credentials in Render's Environment settings; do not commit them to GitHub. The backend will use its in-memory fallback if MongoDB cannot be reached.
+
+### Updating a deployment
+
+Push code changes to the connected GitHub branch. Render will deploy the updated services automatically if auto-deploy is enabled; otherwise, open each service and select **Manual Deploy → Deploy latest commit**. When changing `VITE_API_URL`, trigger a new frontend build because Vite embeds that value into the built site. Free Render web services may sleep while idle and take a little time to respond to the first request after waking.
 
 ## Future scope
 
