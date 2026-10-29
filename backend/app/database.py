@@ -1,58 +1,144 @@
-"""Mongo persistence with a transparent in-memory fallback for demo mode."""
+"""Database persistence layer supporting SQLite, MongoDB, and In-Memory fallback."""
+import asyncio
 from datetime import datetime, timezone
-from motor.motor_asyncio import AsyncIOMotorClient
+import json
+import os
+from pathlib import Path
+import sqlite3
+from typing import Any, Dict, List
 from .config import get_settings
 
-COLLECTIONS = ["forecasts", "observations", "forecast_errors", "confidence_scores", "forecast_busts", "regions", "model_metrics", "nwp_runs", "data_sources", "alerts"]
+COLLECTIONS = [
+    "users",
+    "nwp_forecasts",
+    "weather_observations",
+    "forecast_errors",
+    "confidence_scores",
+    "forecast_busts",
+    "model_runs",
+    "model_metrics",
+    "regions",
+    "data_sources",
+    "alerts",
+    "settings"
+]
 
 class Database:
     def __init__(self):
         self.client = None
         self.db = None
-        self.connected = False
-        self.memory: dict[str, list[dict]] = {name: [] for name in COLLECTIONS}
+        self.connected_mongo = False
+        self.sqlite_path = Path(__file__).resolve().parents[2] / "weather_guard.db"
+        self.sqlite_conn = None
+        # O(1) in-memory fast indexing: collection -> {doc_id: doc}
+        self.memory: Dict[str, Dict[str, dict]] = {name: {} for name in COLLECTIONS}
+        self.initialized = False
 
     async def connect(self):
         settings = get_settings()
-        if not settings.mongodb_uri:
+        
+        # 1. Initialize SQLite storage for local reliable persistence
+        try:
+            self.sqlite_conn = sqlite3.connect(str(self.sqlite_path), check_same_thread=False)
+            self._init_sqlite_tables()
+            self._load_from_sqlite()
+        except Exception as e:
+            print(f"Notice: SQLite fallback: {e}")
+
+        # 2. Check MongoDB if configured
+        if settings.mongodb_uri:
+            try:
+                from motor.motor_asyncio import AsyncIOMotorClient
+                self.client = AsyncIOMotorClient(settings.mongodb_uri, serverSelectionTimeoutMS=1000)
+                await self.client.admin.command("ping")
+                self.db = self.client[settings.mongodb_db]
+                self.connected_mongo = True
+            except Exception:
+                self.connected_mongo = False
+                if self.client:
+                    self.client.close()
+                    self.client = None
+
+        self.initialized = True
+
+    def _init_sqlite_tables(self):
+        if not self.sqlite_conn:
+            return
+        for col in COLLECTIONS:
+            self.sqlite_conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {col} (
+                    id TEXT PRIMARY KEY,
+                    data TEXT NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+        self.sqlite_conn.commit()
+
+    def _load_from_sqlite(self):
+        if not self.sqlite_conn:
             return
         try:
-            self.client = AsyncIOMotorClient(settings.mongodb_uri, serverSelectionTimeoutMS=3000)
-            await self.client.admin.command("ping")
-            self.db = self.client[settings.mongodb_db]
-            self.connected = True
-            await self._create_indexes()
+            for col in COLLECTIONS:
+                rows = self.sqlite_conn.execute(f"SELECT id, data FROM {col}").fetchall()
+                if rows:
+                    self.memory[col] = {r[0]: json.loads(r[1]) for r in rows}
         except Exception:
-            self.connected = False
-            if self.client:
-                self.client.close()
-                self.client = None
-
-    async def _create_indexes(self):
-        for name in ["forecasts", "observations", "forecast_errors", "confidence_scores", "forecast_busts"]:
-            await self.db[name].create_index([("timestamp", -1), ("latitude", 1), ("longitude", 1)])
-            await self.db[name].create_index([("model", 1), ("lead_time", 1), ("region", 1), ("forecast_run", 1)])
-        await self.db.nwp_runs.create_index([("model", 1), ("run_time", 1)], unique=True)
+            pass
 
     async def close(self):
-        if self.client: self.client.close()
+        if self.client:
+            self.client.close()
+        if self.sqlite_conn:
+            self.sqlite_conn.close()
 
     async def upsert_many(self, collection: str, documents: list[dict], keys: list[str]):
-        if self.connected:
-            from pymongo import UpdateOne
-            ops = [UpdateOne({key: doc.get(key) for key in keys}, {"$set": doc}, upsert=True) for doc in documents]
-            if ops: await self.db[collection].bulk_write(ops)
-        else:
-            existing = self.memory[collection]
-            for doc in documents:
-                match = next((item for item in existing if all(item.get(key) == doc.get(key) for key in keys)), None)
-                if match: match.update(doc)
-                else: existing.append(doc)
+        if not documents:
+            return
 
-    async def all(self, collection: str, query: dict | None = None, limit: int = 1000):
+        # Update in-memory index
+        col_store = self.memory.setdefault(collection, {})
+        sqlite_records = []
+        for doc in documents:
+            doc_id = str(doc.get("id") or "-".join(str(doc.get(k, "")) for k in keys))
+            col_store[doc_id] = doc
+            if self.sqlite_conn:
+                sqlite_records.append((doc_id, json.dumps(doc)))
+
+        # Bulk SQLite insert
+        if self.sqlite_conn and sqlite_records:
+            try:
+                self.sqlite_conn.executemany(
+                    f"INSERT OR REPLACE INTO {collection} (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)",
+                    sqlite_records
+                )
+                self.sqlite_conn.commit()
+            except Exception:
+                pass
+
+        # Persist to MongoDB if connected
+        if self.connected_mongo and self.db:
+            try:
+                from pymongo import UpdateOne
+                ops = [UpdateOne({key: doc.get(key) for key in keys}, {"$set": doc}, upsert=True) for doc in documents]
+                if ops:
+                    await self.db[collection].bulk_write(ops)
+            except Exception:
+                pass
+
+    async def all(self, collection: str, query: dict | None = None, limit: int = 5000) -> list[dict]:
         query = query or {}
-        if self.connected:
-            return [doc async for doc in self.db[collection].find(query, {"_id": 0}).limit(limit)]
-        return [d for d in self.memory[collection] if all(d.get(k) == v for k, v in query.items())][:limit]
+        items = list(self.memory.get(collection, {}).values())
+        if not query:
+            return items[:limit]
+        
+        filtered = [
+            d for d in items
+            if all(d.get(k) == v for k, v in query.items())
+        ]
+        return filtered[:limit]
+
+    @property
+    def connected(self) -> bool:
+        return self.connected_mongo or (self.sqlite_conn is not None)
 
 db = Database()
