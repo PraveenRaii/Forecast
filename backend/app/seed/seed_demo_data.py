@@ -128,9 +128,9 @@ async def seed_demo_data(force: bool = False):
             "training_samples": len(all_points),
             "features_count": 14,
             "trained_at": datetime.now(timezone.utc).isoformat(),
-            "mae": 2.41,
-            "rmse": 3.19,
-            "r2": 0.76
+            "mae": 1.68,
+            "rmse": 2.97,
+            "r2": 0.97
         },
         {
             "id": "metric-clf-1",
