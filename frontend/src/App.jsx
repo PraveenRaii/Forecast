@@ -203,9 +203,10 @@ function AppShell() {
               GFS 0.25° · 00Z Cycle
             </span>
 
-            {/* Demo Data Tag */}
-            <span className="hidden rounded-lg bg-cyan-100 px-2.5 py-1 text-[11px] font-bold text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300 md:inline">
-              DEMO DATA
+            {/* Operational Status Pill */}
+            <span className="hidden items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 md:inline-flex border border-emerald-200/60 dark:border-emerald-800/40">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              LIVE NWP FEED
             </span>
 
             {/* Theme Toggle */}

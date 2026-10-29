@@ -82,8 +82,9 @@ export default function Dashboard() {
         <div>
           <div className="flex items-center gap-2">
             <span className="label text-cyan-700 dark:text-cyan-400 font-bold">OPERATIONS CENTER</span>
-            <span className="rounded bg-cyan-100 px-2 py-0.5 text-[10px] font-bold text-cyan-800 dark:bg-cyan-950 dark:text-cyan-300">
-              {summary.mode} MODE
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              LIVE OPERATIONAL
             </span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">

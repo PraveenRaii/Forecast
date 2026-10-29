@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=BASE_DIR / ".env", extra="ignore")
     app_name: str = "WeatherGuard AI"
     app_version: str = "2.4.0"
-    data_mode: str = "demo"  # 'demo' or 'live'
+    data_mode: str = "live"  # 'demo' or 'live'
     database_url: str = "sqlite:///./weather_guard.db"
     mongodb_uri: str | None = None
     mongodb_db: str = "weather_guard"
