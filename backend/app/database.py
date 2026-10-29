@@ -1,4 +1,4 @@
-"""Database persistence layer supporting SQLite, MongoDB, and In-Memory fallback."""
+"""Database persistence layer supporting SQLite with in-memory caching for ultra-low latency."""
 from datetime import datetime, timezone
 import json
 import os
@@ -29,12 +29,20 @@ class Database:
         self.connected_mongo = False
         self.sqlite_path = Path(__file__).resolve().parents[2] / "weather_guard.db"
         self.sqlite_conn = None
+        # Cache for sub-millisecond response time
+        self.cache: Dict[str, List[dict]] = {}
         self.initialized = False
         self._init_sqlite()
 
     def _init_sqlite(self):
         try:
-            self.sqlite_conn = sqlite3.connect(str(self.sqlite_path), check_same_thread=False)
+            self.sqlite_conn = sqlite3.connect(
+                str(self.sqlite_path),
+                check_same_thread=False,
+                timeout=5.0
+            )
+            self.sqlite_conn.execute("PRAGMA journal_mode=WAL;")
+            self.sqlite_conn.execute("PRAGMA synchronous=NORMAL;")
             for col in COLLECTIONS:
                 self.sqlite_conn.execute(f"""
                     CREATE TABLE IF NOT EXISTS {col} (
@@ -44,9 +52,22 @@ class Database:
                     )
                 """)
             self.sqlite_conn.commit()
+            self._warm_cache()
             self.initialized = True
         except Exception as e:
             print(f"Notice SQLite init: {e}")
+
+    def _warm_cache(self):
+        if not self.sqlite_conn:
+            return
+        try:
+            for col in ["regions", "model_metrics", "data_sources", "alerts"]:
+                cursor = self.sqlite_conn.cursor()
+                rows = cursor.execute(f"SELECT data FROM {col} LIMIT 1000").fetchall()
+                if rows:
+                    self.cache[col] = [json.loads(r[0]) for r in rows]
+        except Exception:
+            pass
 
     async def connect(self):
         if not self.initialized:
@@ -81,20 +102,29 @@ class Database:
                 records
             )
             self.sqlite_conn.commit()
+            # Invalidate or update cache
+            self.cache.pop(collection, None)
         except Exception:
             pass
 
     async def all(self, collection: str, query: dict | None = None, limit: int = 5000) -> list[dict]:
+        # Check cache first for common static or warm collections
+        if not query and collection in self.cache:
+            return self.cache[collection][:limit]
+
         if not self.sqlite_conn:
             return []
+
         try:
-            # High-speed SQLite query
             cursor = self.sqlite_conn.cursor()
-            rows = cursor.execute(f"SELECT data FROM {collection} LIMIT {limit * 3}").fetchall()
+            rows = cursor.execute(f"SELECT data FROM {collection} LIMIT {limit}").fetchall()
             items = [json.loads(r[0]) for r in rows]
-            if not query:
-                return items[:limit]
             
+            if not query:
+                if collection not in ["confidence_scores", "forecasts"]:
+                    self.cache[collection] = items
+                return items[:limit]
+
             filtered = [
                 d for d in items
                 if all(d.get(k) == v for k, v in query.items())
