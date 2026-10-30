@@ -15,7 +15,7 @@ from ...services.alert_service import build_alerts
 from ...ml.explainability import explain_forecast_record
 from ...ml.train import train_models_sync
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 async def get_latest_points(lead_time: int | None = None, region: str | None = None) -> List[Dict[str, Any]]:
     """Retrieve operational forecast confidence points for the latest run."""

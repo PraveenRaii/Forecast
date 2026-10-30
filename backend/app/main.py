@@ -35,4 +35,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Support both /api/endpoint and /endpoint for maximum compatibility
+app.include_router(router, prefix="/api")
 app.include_router(router)
