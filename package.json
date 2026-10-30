@@ -1,0 +1,12 @@
+{
+  "name": "weatherguard-ai",
+  "version": "2.4.0",
+  "description": "AI-Based NWP Forecast Confidence & Forecast Bust Detection System",
+  "scripts": {
+    "dev": "node run.js",
+    "start": "node run.js",
+    "backend": "cd backend && .\\venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "seed": "cd backend && .\\venv\\Scripts\\python.exe train_cli.py"
+  }
+}

@@ -1,29 +1,35 @@
 services:
+  # Backend API Service (FastAPI + XGBoost + SQLite)
   - type: web
-    name: safar-api
+    name: weatherguard-api
     runtime: python
-    region: singapore
+    region: oregon
     plan: free
     rootDir: backend
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python train_cli.py
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.8
       - key: DATA_MODE
-        value: demo
+        value: live
+      - key: ML_MODEL_PATH
+        value: ../ml_models
       - key: FRONTEND_URL
-        value: https://safar-forecast.onrender.com
+        value: https://weatherguard-app.onrender.com
 
+  # Frontend Web Client (React + Vite + Tailwind + Google Maps)
   - type: web
-    name: safar-forecast
+    name: weatherguard-app
     runtime: static
     rootDir: frontend
-    buildCommand: npm ci && npm run build
+    buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://safar-api.onrender.com/api
+        value: https://weatherguard-api.onrender.com/api
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        value: AIzaSyCHgk1CcahOfXyoQJKKOAQr
     routes:
       - type: rewrite
         source: /*

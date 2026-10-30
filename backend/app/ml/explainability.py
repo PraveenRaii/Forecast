@@ -27,7 +27,7 @@ FEATURE_LABELS = {
 def explain_forecast_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Generates ordered list of contributing features with directional impacts."""
     reg, clf, cols = get_models()
-    x_vec = np.array([[float(record.get(c, 0.0)) for c in cols]])
+    x_vec = np.array([[float(record.get(c) if record.get(c) is not None else 0.0) for c in cols]])
 
     # 1. Check if model booster can calculate exact native TreeSHAP values
     shap_vals = None
@@ -53,12 +53,12 @@ def explain_forecast_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
 
     # 3. Fallback to meteorological physical attributions
     if shap_vals is None:
-        lead = record.get("lead_time", 1)
-        shear = record.get("wind_shear_850_200", 12.0)
-        p_tend = abs(record.get("pressure_tendency", 0.0))
-        hist = record.get("historical_error", 2.5)
-        rh = record.get("relative_humidity", 60.0)
-        spread = record.get("ensemble_spread", 1.0)
+        lead = float(record.get("lead_time") or 1)
+        shear = float(record.get("wind_shear_850_200") or 12.0)
+        p_tend = abs(float(record.get("pressure_tendency") or 0.0))
+        hist = float(record.get("historical_error") or 2.5)
+        rh = float(record.get("relative_humidity") or 60.0)
+        spread = float(record.get("ensemble_spread") or 1.0)
         
         simulated = [
             ("historical_error", 0.15 + (hist / 10.0) * 0.25, "increase"),
@@ -67,8 +67,8 @@ def explain_forecast_record(record: Dict[str, Any]) -> List[Dict[str, Any]]:
             ("lead_time", 0.05 + (lead / 10.0) * 0.25, "increase"),
             ("ensemble_spread", 0.06 + (spread / 4.0) * 0.18, "increase"),
             ("relative_humidity", 0.04 + (rh / 100.0) * 0.12, "increase"),
-            ("cape", 0.03 + (record.get("cape", 500) / 4000.0) * 0.10, "increase"),
-            ("rainfall", 0.02 + (record.get("rainfall", 0) / 100.0) * 0.10, "increase")
+            ("cape", 0.03 + (float(record.get("cape") or 500) / 4000.0) * 0.10, "increase"),
+            ("rainfall", 0.02 + (float(record.get("rainfall") or 0) / 100.0) * 0.10, "increase")
         ]
         return [
             {

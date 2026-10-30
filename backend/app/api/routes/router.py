@@ -159,11 +159,11 @@ async def error_history(
         
     # Aggregate statistics
     if errors:
-        mae = round(sum(e.get("mae", 0) for e in errors) / len(errors), 2)
-        rmse = round(sum(e.get("rmse", 0) for e in errors) / len(errors), 2)
-        bias = round(sum(e.get("bias", 0) for e in errors) / len(errors), 2)
-        p90 = round(np_percentile([e.get("temperature_error", 1.0) for e in errors], 90), 2)
-        p95 = round(np_percentile([e.get("temperature_error", 1.0) for e in errors], 95), 2)
+        mae = round(sum(float(e.get("mae") or 0) for e in errors) / len(errors), 2)
+        rmse = round(sum(float(e.get("rmse") or 0) for e in errors) / len(errors), 2)
+        bias = round(sum(float(e.get("bias") or 0) for e in errors) / len(errors), 2)
+        p90 = round(np_percentile([float(e.get("temperature_error") or 1.0) for e in errors], 90), 2)
+        p95 = round(np_percentile([float(e.get("temperature_error") or 1.0) for e in errors], 95), 2)
     else:
         mae, rmse, bias, p90, p95 = 2.4, 3.1, -0.3, 5.2, 6.8
 

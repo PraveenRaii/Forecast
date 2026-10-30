@@ -1,0 +1,2 @@
+const styles = { VERY_LOW: 'bg-emerald-100 text-emerald-800', LOW: 'bg-teal-100 text-teal-800', MODERATE: 'bg-amber-100 text-amber-800', HIGH: 'bg-orange-100 text-orange-800', VERY_HIGH: 'bg-red-100 text-red-800' }
+export default function RiskBadge({ risk }) { return <span className={`rounded-full px-2 py-1 text-xs font-semibold ${styles[risk] || styles.MODERATE}`}>{(risk || 'MODERATE').replace('_', ' ')}</span> }

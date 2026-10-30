@@ -1,8 +1,53 @@
 import React, { useState } from 'react'
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, Shield, Zap, Wind, Droplets } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Shield, Zap, Wind, Droplets, Layers } from 'lucide-react'
 import RiskBadge from './RiskBadge'
+
+const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''
+
+const MAP_LAYERS = {
+  google_roadmap: {
+    label: 'Google Map',
+    url: GOOGLE_MAPS_KEY
+      ? `https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: GOOGLE_MAPS_KEY ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd'],
+    attribution: GOOGLE_MAPS_KEY
+      ? '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+      : '&copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 20
+  },
+  google_hybrid: {
+    label: 'Satellite',
+    url: GOOGLE_MAPS_KEY
+      ? `https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`
+      : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    subdomains: GOOGLE_MAPS_KEY ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd'],
+    attribution: GOOGLE_MAPS_KEY
+      ? '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+      : '&copy; Esri',
+    maxZoom: 20
+  },
+  google_terrain: {
+    label: 'Terrain',
+    url: GOOGLE_MAPS_KEY
+      ? `https://mt{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}&key=${GOOGLE_MAPS_KEY}`
+      : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: GOOGLE_MAPS_KEY ? ['0', '1', '2', '3'] : ['a', 'b', 'c', 'd'],
+    attribution: GOOGLE_MAPS_KEY
+      ? '&copy; <a href="https://maps.google.com" target="_blank" rel="noopener noreferrer">Google Maps</a>'
+      : '&copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 20
+  },
+  carto_voyager: {
+    label: 'Clean',
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    subdomains: ['a', 'b', 'c', 'd'],
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19
+  }
+}
 
 // 5-Tier Scientific Confidence Classification
 export const getConfidenceColor = (score) => {
@@ -23,6 +68,9 @@ export const getConfidenceTier = (score) => {
 
 export default function ConfidenceMap({ points = [], selectedRegionId = null, onSelectRegion = null, height = 'h-[500px]' }) {
   const [activePoint, setActivePoint] = useState(null)
+  const [activeLayer, setActiveLayer] = useState(GOOGLE_MAPS_KEY ? 'google_roadmap' : 'carto_voyager')
+
+  const currentLayer = MAP_LAYERS[activeLayer] || MAP_LAYERS.google_roadmap
 
   const handlePointClick = (p) => {
     setActivePoint(p)
@@ -33,17 +81,47 @@ export default function ConfidenceMap({ points = [], selectedRegionId = null, on
     <div className="relative flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
       {/* Map Container */}
       <div className={`${height} w-full relative z-0`}>
+        {/* Layer Selector Floating Toolbar */}
+        <div className="absolute top-3 left-3 z-[1000] flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white/95 p-1 shadow-md backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
+          <div className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+            <Layers size={12} className="text-cyan-700 dark:text-cyan-400" />
+            <span>Map</span>
+          </div>
+          {Object.entries(MAP_LAYERS).map(([key, config]) => (
+            <button
+              key={key}
+              onClick={() => setActiveLayer(key)}
+              className={`rounded px-2 py-0.5 text-[11px] font-semibold transition-all ${
+                activeLayer === key
+                  ? 'bg-cyan-700 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+              }`}
+            >
+              {config.label}
+            </button>
+          ))}
+          {GOOGLE_MAPS_KEY && (
+            <span className="ml-1 inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Google
+            </span>
+          )}
+        </div>
+
         <MapContainer
           center={[22.8, 81.5]}
           zoom={4.6}
           minZoom={4}
-          maxZoom={9}
+          maxZoom={18}
           scrollWheelZoom={false}
           className="h-full w-full"
         >
           <TileLayer
-            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+            key={activeLayer}
+            attribution={currentLayer.attribution}
+            url={currentLayer.url}
+            subdomains={currentLayer.subdomains}
+            maxZoom={currentLayer.maxZoom}
           />
 
           {points.map((p) => {
